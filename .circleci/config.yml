@@ -41,7 +41,7 @@ commands:
       - run:
           name: defining insecure registry location
           command: |
-            echo "[registry.\"${LOCAL_IP}:5000\"]\n\thttp = true" > /tmp/buildkitd.toml
+            echo -e "[registry.\"${LOCAL_IP}:5000\"]\n\thttp = true" > /tmp/buildkitd.toml
             echo "{\"insecure-registries\": [\"0.0.0.0:5000\", \"${LOCAL_IP}:5000\"]}" | jq > /tmp/daemon.json
             sudo cp /tmp/daemon.json /etc/docker/
             sudo systemctl restart docker
