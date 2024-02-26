@@ -43,7 +43,6 @@ jobs:
   build_and_save_test_images:
     executor: image_builder
     steps:
-      - docker/install-docker
       - local_registry_start
       - checkout
       - run: docker buildx create --use --name skupper-buildx
