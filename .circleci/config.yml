@@ -46,7 +46,7 @@ jobs:
       - local_registry_start
       - checkout
       - run: docker buildx create --use --name skupper-buildx
-      - run: make -e docker-build
+      - run: make -e docker-build CACHE_REGISTRY=127.0.0.1:5000
       - run:
           name: persisting images to workspace
           command: |

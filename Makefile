@@ -8,7 +8,16 @@ TEST_IMAGE := quay.io/skupper/skupper-tests
 TEST_BINARIES_FOLDER := ${PWD}/test/integration/bin
 DOCKER := docker
 LDFLAGS := -X github.com/skupperproject/skupper/pkg/version.Version=${VERSION}
-PLATFORMS ?= linux/amd64,linux/arm64
+PLATFORMS := linux/amd64 linux/arm64
+PLATFORM_FLAGS := $(foreach platform, $(PLATFORMS), --platform $(platform))
+ifneq ($(CACHE_REGISTRY),)
+	CACHE_FROM := $(foreach platform, $(PLATFORMS), \
+		--cache-from=type=registry,ref=$(CACHE_REGISTRY)/cache-$(platform),mode=max \
+	)
+	CACHE_TO_PREFIX := --cache-to=type=registry,mode=max,ref=$(CACHE_REGISTRY)/cache-
+	DOCKER_CACHE_TARGETS := $(PLATFORMS)
+endif
+CACHE_FROM ?= --no-cache
 GOOS ?= linux
 GOARCH ?= amd64
 
@@ -49,31 +58,34 @@ build-controllers: build-site-controller build-service-controller build-controll
 build-manifest:
 	go build -ldflags="${LDFLAGS}"  -o manifest ./cmd/manifest
 
-docker-build-test-image:
-	${DOCKER} buildx build --no-cache --platform ${PLATFORMS} -t ${TEST_IMAGE} -f Dockerfile.ci-test .
-	${DOCKER} buildx build --load -t ${TEST_IMAGE} -f Dockerfile.ci-test .
+$(DOCKER_CACHE_TARGETS):
+	${DOCKER} buildx build ${CACHE_TO_PREFIX}$@ --platform $@ -f Dockerfile.config-sync --target builder --load .
 
-docker-build: generate-client docker-build-test-image
-	${DOCKER} buildx build --no-cache --platform ${PLATFORMS} -t ${SERVICE_CONTROLLER_IMAGE} -f Dockerfile.service-controller .
-	${DOCKER} buildx build --load  -t ${SERVICE_CONTROLLER_IMAGE} -f Dockerfile.service-controller .
-	${DOCKER} buildx build --no-cache --platform ${PLATFORMS} -t ${CONTROLLER_PODMAN_IMAGE} -f Dockerfile.controller-podman .
-	${DOCKER} buildx build --load  -t ${CONTROLLER_PODMAN_IMAGE} -f Dockerfile.controller-podman .
-	${DOCKER} buildx build --no-cache --platform ${PLATFORMS} -t ${SITE_CONTROLLER_IMAGE} -f Dockerfile.site-controller .
-	${DOCKER} buildx build --load  -t ${SITE_CONTROLLER_IMAGE} -f Dockerfile.site-controller .
-	${DOCKER} buildx build --no-cache --platform ${PLATFORMS} -t ${CONFIG_SYNC_IMAGE} -f Dockerfile.config-sync .
-	${DOCKER} buildx build --load  -t ${CONFIG_SYNC_IMAGE} -f Dockerfile.config-sync .
-	${DOCKER} buildx build --no-cache --platform ${PLATFORMS} -t ${FLOW_COLLECTOR_IMAGE} -f Dockerfile.flow-collector .
-	${DOCKER} buildx build --load  -t ${FLOW_COLLECTOR_IMAGE} -f Dockerfile.flow-collector .
+docker-build-test-image:
+	${DOCKER} buildx build ${CACHE_FROM} ${PLATFORM_FLAGS} -t ${TEST_IMAGE} -f Dockerfile.ci-test .
+	${DOCKER} buildx build ${CACHE_FROM} --load -t ${TEST_IMAGE} -f Dockerfile.ci-test .
+
+docker-build: generate-client $(DOCKER_CACHE_TARGETS) docker-build-test-image
+	${DOCKER} buildx build ${CACHE_FROM} ${PLATFORM_FLAGS} -t ${SERVICE_CONTROLLER_IMAGE} -f Dockerfile.service-controller .
+	${DOCKER} buildx build ${CACHE_FROM} --load  -t ${SERVICE_CONTROLLER_IMAGE} -f Dockerfile.service-controller .
+	${DOCKER} buildx build ${CACHE_FROM} ${PLATFORM_FLAGS} -t ${CONTROLLER_PODMAN_IMAGE} -f Dockerfile.controller-podman .
+	${DOCKER} buildx build ${CACHE_FROM} --load  -t ${CONTROLLER_PODMAN_IMAGE} -f Dockerfile.controller-podman .
+	${DOCKER} buildx build ${CACHE_FROM} ${PLATFORM_FLAGS} -t ${SITE_CONTROLLER_IMAGE} -f Dockerfile.site-controller .
+	${DOCKER} buildx build ${CACHE_FROM} --load  -t ${SITE_CONTROLLER_IMAGE} -f Dockerfile.site-controller .
+	${DOCKER} buildx build ${CACHE_FROM} ${PLATFORM_FLAGS} -t ${CONFIG_SYNC_IMAGE} -f Dockerfile.config-sync .
+	${DOCKER} buildx build ${CACHE_FROM} --load  -t ${CONFIG_SYNC_IMAGE} -f Dockerfile.config-sync .
+	${DOCKER} buildx build ${CACHE_FROM} ${PLATFORM_FLAGS} -t ${FLOW_COLLECTOR_IMAGE} -f Dockerfile.flow-collector .
+	${DOCKER} buildx build ${CACHE_FROM} --load  -t ${FLOW_COLLECTOR_IMAGE} -f Dockerfile.flow-collector .
 
 docker-push-test-image:
-	${DOCKER} buildx build --push --platform ${PLATFORMS} -t ${TEST_IMAGE} -f Dockerfile.ci-test .
+	${DOCKER} buildx build --push ${PLATFORM_FLAGS} -t ${TEST_IMAGE} -f Dockerfile.ci-test .
 
 docker-push: docker-push-test-image
-	${DOCKER} buildx build --push --platform ${PLATFORMS} -t ${SERVICE_CONTROLLER_IMAGE} -f Dockerfile.service-controller .
-	${DOCKER} buildx build --push --platform ${PLATFORMS} -t ${CONTROLLER_PODMAN_IMAGE} -f Dockerfile.controller-podman .
-	${DOCKER} buildx build --push --platform ${PLATFORMS} -t ${SITE_CONTROLLER_IMAGE} -f Dockerfile.site-controller .
-	${DOCKER} buildx build --push --platform ${PLATFORMS} -t ${CONFIG_SYNC_IMAGE} -f Dockerfile.config-sync .
-	${DOCKER} buildx build --push --platform ${PLATFORMS} -t ${FLOW_COLLECTOR_IMAGE} -f Dockerfile.flow-collector .
+	${DOCKER} buildx build --push ${PLATFORM_FLAGS} -t ${SERVICE_CONTROLLER_IMAGE} -f Dockerfile.service-controller .
+	${DOCKER} buildx build --push ${PLATFORM_FLAGS} -t ${CONTROLLER_PODMAN_IMAGE} -f Dockerfile.controller-podman .
+	${DOCKER} buildx build --push ${PLATFORM_FLAGS} -t ${SITE_CONTROLLER_IMAGE} -f Dockerfile.site-controller .
+	${DOCKER} buildx build --push ${PLATFORM_FLAGS} -t ${CONFIG_SYNC_IMAGE} -f Dockerfile.config-sync .
+	${DOCKER} buildx build --push ${PLATFORM_FLAGS} -t ${FLOW_COLLECTOR_IMAGE} -f Dockerfile.flow-collector .
 
 format:
 	go fmt ./...
