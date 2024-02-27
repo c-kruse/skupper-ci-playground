@@ -6,6 +6,7 @@ orbs:
 
 executors:
   go_cimg:
+    resource_class: large
     docker:
       - image: cimg/go:1.20
     environment:
