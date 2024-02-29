@@ -383,6 +383,8 @@ jobs:
     steps:
       - checkout
       - go/load-cache
+      - run: go mod download
+      - go/save-cache
 
 
   build_and_save_test_images:
