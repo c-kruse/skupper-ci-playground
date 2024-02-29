@@ -382,9 +382,7 @@ jobs:
       name: go_cimg
     steps:
       - checkout
-      - restore_cache:
-        keys:
-          - go-mod-{{ arch }}-{{ checksum "go.sum"  }}
+      - go/load-cache
 
 
   build_and_save_test_images:
