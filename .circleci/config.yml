@@ -384,7 +384,7 @@ jobs:
       - checkout
       - restore_cache:
         keys:
-          - << parameters.key >>-{{ arch }}-{{ checksum "go.sum"  }}
+          - go-mod-{{ arch }}-{{ checksum "go.sum"  }}
 
 
   build_and_save_test_images:
