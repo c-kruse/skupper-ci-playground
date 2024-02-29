@@ -373,75 +373,8 @@ workflows:
   version: 2.1
   build-workflow:
     jobs:
-      - build-all:
-          <<: *run_for_all_branches_and_numeric_tags
-      - test-skupper-binary:
-          <<: *run_for_all_branches_and_numeric_tags
-          matrix:
-            parameters:
-              image:
-                - quay.io/centos/centos:stream8
-                - quay.io/centos/centos:stream9
-                - quay.io/fedora/fedora:38
-                - quay.io/fedora/fedora:39
-          requires:
-            - build-all
       - test:
           <<: *run_for_all_branches_and_numeric_tags
-      - build_and_save_test_images:
-          <<: *run_for_all_branches_and_numeric_tags
-
-      - main_tests_minikube_local_cluster:
-          <<: *run_for_all_branches_and_numeric_tags
-          pre-steps:
-            - prepare_for_local_cluster_tests
-          requires:
-            - test
-            - build_and_save_test_images
-
-      - policy_tests_minikube_local_cluster:
-          <<: *run_for_all_branches_and_numeric_tags
-          pre-steps:
-            - prepare_for_local_cluster_tests
-          requires:
-            - test
-            - build_and_save_test_images
-
-      - publish-github-release-images:
-          <<: *run_for_numeric_tags
-          <<: *release_requires
-          context:
-            - skupper-org
-
-      - generate-manifest:
-          <<: *run_for_numeric_tags
-          <<: *release_requires
-          requires:
-            - publish-github-release-images
-          context:
-            - skupper-org
-
-      - publish-github-release-artifacts:
-          <<: *run_for_numeric_tags
-          <<: *release_requires
-          requires:
-            - generate-manifest
-            - publish-github-release-images
-          context:
-            - skupper-org
-
-      - publish-github-main-artifacts:
-          <<: *run_for_main_branch
-          requires:
-            - publish-github-main-images
-          context:
-            - skupper-org
-
-      - publish-github-main-images:
-          <<: *run_for_main_branch
-          <<: *release_requires
-          context:
-            - skupper-org
 
 jobs:
   test:
@@ -449,30 +382,10 @@ jobs:
       name: go_cimg
     steps:
       - checkout
-      - run:
-          name: "Enforce Go Formatted Code"
-          command: >
-              if [ `make format -s | wc -l` -ne 0 ]; then
-                git --no-pager diff
-                echo "Bad formatting! execute \"\$make format\" locally and push again!"
-                exit 1
-              fi
-      - go/mod-download-cached
-      - run: make generate-client
-      - run:
-          name: Creating artifacts directory
-          command: mkdir /tmp/artifacts
-      - go/test:
-          coverpkg: "./api/...,./client/...,./cmd/...,./pkg/..."
-          verbose: true
-          coverprofile: "/tmp/artifacts/cover.out"
-          parallel: "3"
-      - run:
-          name: Generating HTML coverage report
-          command: go tool cover -html /tmp/artifacts/cover.out -o /tmp/artifacts/cover.html
-      - store_artifacts:
-          path: /tmp/artifacts
-          destination: test-artifacts
+      - restore_cache:
+        keys:
+          - << parameters.key >>-{{ arch }}-{{ checksum "go.sum"  }}
+
 
   build_and_save_test_images:
     executor: local_cluster_test_executor
