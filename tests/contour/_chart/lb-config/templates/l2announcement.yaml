@@ -1,0 +1,9 @@
+apiVersion: metallb.io/v1beta1
+kind: L2Advertisement
+metadata:
+  name: {{ include "lb-config.fullname" . }}
+  labels:
+    {{- include "lb-config.labels" . | nindent 4 }}
+spec:
+  ipAddressPools:
+  - {{ include "lb-config.fullname" . }}

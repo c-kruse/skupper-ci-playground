@@ -75,6 +75,11 @@ workflows:
           <<: *run_for_all_branches_and_numeric_tags
       - build_and_save_test_images:
           <<: *run_for_all_branches_and_numeric_tags
+      - run_cluster_tests:
+          <<: *run_for_all_branches_and_numeric_tags
+          requires:
+            - build_and_save_test_images
+
 
 jobs:
   test:
@@ -158,4 +163,20 @@ jobs:
           command: |
             cd "dist/${CIRCLE_PROJECT_REPONAME}_linux_amd64_v1/"
             ./skupper site
+
+  run_cluster_tests:
+    executor: local_cluster_test_executor
+    steps:
+      - checkout
+      - run:
+          name: Install Kind
+          command: |
+            curl -Lo kind https://github.com/kubernetes-sigs/kind/releases/download/v0.24.0/kind-linux-amd64
+            chmod +x kind
+            sudo mv kind /usr/local/bin/
+      - run:
+          name: Install Dependencies
+          command: |
+            cd ./tests/contour
+            ./install.sh
 

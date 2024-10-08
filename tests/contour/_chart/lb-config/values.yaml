@@ -1,0 +1,9 @@
+# Default values for lb-config.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+
+# ipAddresses for default metallb IPAddressPool. Must be chosen based on the
+# cluster network environment. For kind local cluster using docker or podamn,
+# inspect the network and pick a subnet.
+ipAddresses: ""

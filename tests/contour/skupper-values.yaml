@@ -1,0 +1,9 @@
+access:
+  defaultType: "gateway"
+  enabledTypes: "gateway,loadbalancer"
+  gateway:
+    class: "contour"
+    domain: "contour.local"
+image:
+  repository: registry.c-kruse.com/skupper/controller
+  tag: "v2-link-access"

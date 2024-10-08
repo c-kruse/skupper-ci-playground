@@ -1,0 +1,10 @@
+apiVersion: metallb.io/v1beta1
+kind: IPAddressPool
+metadata:
+  name: {{ include "lb-config.fullname" . }}
+  labels:
+    {{- include "lb-config.labels" . | nindent 4 }}
+spec:
+  avoidBuggyIPs: true
+  addresses:
+  - {{ required "A valid .Values.ipAddresses entry is requried." .Values.ipAddresses}}
