@@ -68,6 +68,7 @@ workflows:
                 - quay.io/centos/centos:stream9
                 - quay.io/fedora/fedora:38
                 - quay.io/fedora/fedora:39
+                - docker.io/debian:bullseye-slim
           requires:
             - build-all
       - test:
