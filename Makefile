@@ -87,6 +87,9 @@ cover:
 		-coverprofile cover.out \
 		./...
 
+cover:
+	go test -coverprofile=cover.out   -covermode=set -v ./...
+
 clean:
 	rm -rf skupper controller release config-sync manifest bootstrap network-console-collector
 
