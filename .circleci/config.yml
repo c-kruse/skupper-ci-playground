@@ -77,6 +77,8 @@ workflows:
           <<: *run_for_all_branches_and_numeric_tags
       - run_cluster_tests:
           <<: *run_for_all_branches_and_numeric_tags
+          requires:
+            - build_and_save_test_images
 
 
 jobs:
@@ -119,14 +121,14 @@ jobs:
           name: persisting images to workspace
           command: |
             mkdir /tmp/images
-            docker tag quay.io/skupper/controller:v2-latest 0.0.0.0:5000/controller
-            docker save 0.0.0.0:5000/controller | gzip > /tmp/images/controller.gz
-            docker tag quay.io/skupper/config-sync:v2-latest 0.0.0.0:5000/config-sync
-            docker save 0.0.0.0:5000/config-sync | gzip > /tmp/images/config-sync.gz
-            docker tag quay.io/skupper/network-console-collector:v2-latest 0.0.0.0:5000/network-console-collector
-            docker save 0.0.0.0:5000/network-console-collector | gzip > /tmp/images/network-console-collector.gz
-            docker tag quay.io/skupper/bootstrap:v2-latest 0.0.0.0:5000/bootstrap
-            docker save 0.0.0.0:5000/bootstrap | gzip > /tmp/images/bootstrap.gz
+            docker tag quay.io/skupper/controller:v2-latest localhost:5000/controller
+            docker save localhost:5000/controller | gzip > /tmp/images/controller.gz
+            docker tag quay.io/skupper/config-sync:v2-latest localhost:5000/config-sync
+            docker save localhost:5000/config-sync | gzip > /tmp/images/config-sync.gz
+            docker tag quay.io/skupper/network-console-collector:v2-latest localhost:5000/network-console-collector
+            docker save localhost:5000/network-console-collector | gzip > /tmp/images/network-console-collector.gz
+            docker tag quay.io/skupper/bootstrap:v2-latest localhost:5000/bootstrap
+            docker save localhost:5000/bootstrap | gzip > /tmp/images/bootstrap.gz
       - persist_to_workspace:
           root: /tmp
           paths:
@@ -180,6 +182,16 @@ jobs:
             curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
             chmod 700 get_helm.sh
             ./get_helm.sh
+      - attach_workspace:
+          at: /tmp/
+      - run:
+          name: Start local registry
+          command: |
+            ./tests/startRegistry.sh
+            docker image load --input /tmp/images/controller.gz
+            docker image load --input /tmp/images/config-sync.gz
+            docker push localhost:5000/controller
+            docker push localhost:5000/config-sync
       - run:
           name: Install Dependencies
           command: |

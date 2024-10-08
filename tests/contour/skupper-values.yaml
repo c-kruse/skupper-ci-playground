@@ -4,6 +4,12 @@ access:
   gateway:
     class: "contour"
     domain: "contour.local"
+
 image:
-  repository: registry.c-kruse.com/skupper/controller
-  tag: "v2-link-access"
+  repository: localhost:5000/controller
+  tag: "latest"
+
+configSyncImage:
+  repository: localhost:5000/config-sync
+  tag: "latest"
+
