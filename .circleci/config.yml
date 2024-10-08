@@ -77,8 +77,6 @@ workflows:
           <<: *run_for_all_branches_and_numeric_tags
       - run_cluster_tests:
           <<: *run_for_all_branches_and_numeric_tags
-          requires:
-            - build_and_save_test_images
 
 
 jobs:
