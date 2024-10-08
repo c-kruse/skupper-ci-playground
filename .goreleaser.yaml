@@ -24,6 +24,7 @@ builds:
     goarch:
       - amd64
       - arm64
+      - s390x
     ldflags:
       - -s -w -X github.com/skupperproject/skupper/pkg/version.Version={{.Version}}
 
