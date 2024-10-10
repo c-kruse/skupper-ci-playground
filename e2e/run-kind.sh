@@ -4,19 +4,11 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
-cleanup() {
-  kind delete cluster \
-    --verbosity="${KIND_LOG_LEVEL}" \
-    --name "${KIND_CLUSTER_NAME}"
-}
-
 DEBUG=${DEBUG:=false}
 
 if [ "${DEBUG}" = "true" ]; then
   set -x
   KIND_LOG_LEVEL="6"
-else
-  trap cleanup EXIT
 fi
 
 KIND_LOG_LEVEL="1"
@@ -95,6 +87,7 @@ kind_ip=$(docker network inspect -f '{{.IPAM.Config}}' kind | awk '/.*/ { print 
 start_ip=$(echo "$kind_ip" | cut -f1-2 -d'.').200.100
 end_ip=$(echo "$start_ip" | cut -f1-3 -d'.').250
 
+
 kubectl apply -f - <<EOF
 apiVersion: metallb.io/v1beta1
 kind: IPAddressPool
@@ -116,30 +109,41 @@ EOF
 kubectl apply -f https://raw.githubusercontent.com/projectcontour/contour/release-1.30/examples/render/contour-gateway-provisioner.yaml
 kubectl apply -f "${DIR}/resources/gatewayclass.yaml"
 
-# contour gateway
-kubectl apply -f https://raw.githubusercontent.com/projectcontour/contour/release-1.30/examples/render/contour-gateway-provisioner.yaml
-kubectl apply -f "${DIR}/resources/gatewayclass.yaml"
 
+# nginx ingress
 helm upgrade --install ingress-nginx ingress-nginx \
   --repo https://kubernetes.github.io/ingress-nginx \
   --namespace ingress-nginx --create-namespace
 
 echo "[dev-env] installing skupper controller.."
 
+testdomain="${KIND_CLUSTER_NAME}.testing"
+
 cat << EOF | helm upgrade --install skupper-controller oci://quay.io/ckruse/skupper-charts/skupper --namespace skupper --create-namespace  --values -
 image:
-  repository: "${CONTROLLER_IMAGE}"
-  tag: "${CONTROLLER_TAG}"
+  repository: "${CONTROLLER_IMAGE_REPO}"
+  tag: "${CONTROLLER_IMAGE_TAG}"
   pullPolicy: Never
 
 configSyncImage:
-  repository: "${CONFIG_SYNC_IMAGE}"
-  tag: "${CONFIG_SYNC_TAG}"
+  repository: "${CONFIG_SYNC_IMAGE_REPO}"
+  tag: "${CONFIG_SYNC_IMAGE_TAG}"
   pullPolicy: Never
 
 routerImage:
-  repository: "${ROUTER_IMAGE}"
-  tag: "${ROUTER_TAG}"
+  repository: "${ROUTER_IMAGE_REPO}"
+  tag: "${ROUTER_IMAGE_TAG}"
   pullPolicy: Never
 
+access:
+  enabledTypes: local,loadbalancer,nodeport,ingress-nginx,contour-http-proxy,gateway
+  gateway:
+    class: contour
+    domain: "gateway.$testdomain"
+  nodeport:
+    domain: "host.$testdomain"
+  nginx:
+    domain: "nginx-ingress.$testdomain"
+  contour:
+    domain: "contour.$testdomain"
 EOF
