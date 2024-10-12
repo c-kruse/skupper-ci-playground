@@ -185,13 +185,12 @@ jobs:
       - attach_workspace:
           at: /tmp/
       - run:
-          name: Start local registry
+          name: Load images
           command: |
-            ./tests/startRegistry.sh
             docker image load --input /tmp/images/controller.gz
             docker image load --input /tmp/images/config-sync.gz
-            docker push localhost:5000/controller
-            docker push localhost:5000/config-sync
+            docker image tag localhost:5000/controller quay.io/skupper/controller:v2-latest
+            docker image tag localhost:5000/config-sync quay.io/skupper/config-sync:v2-latest
       - run:
           name: Install Dependencies
           command: |
