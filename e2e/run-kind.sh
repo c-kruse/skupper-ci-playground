@@ -49,6 +49,13 @@ if [ "${SKIP_CLUSTER_CREATION}" = "false" ]; then
   kubectl get nodes -o wide
 fi
 
+kind_ip=$(docker network inspect -f '{{.IPAM.Config}}' kind | awk '/.*/ { print $2 }')
+start_ip=$(echo "$kind_ip" | cut -f1-2 -d'.').200.100
+end_ip=$(echo "$start_ip" | cut -f1-3 -d'.').250
+testdomain="${KIND_CLUSTER_NAME}.testing"
+
+
+
 # Preload images used in e2e tests
 
 
@@ -83,9 +90,6 @@ helm upgrade --install metallb metallb/metallb \
 		--version 0.14.* \
 		--wait
 
-kind_ip=$(docker network inspect -f '{{.IPAM.Config}}' kind | awk '/.*/ { print $2 }')
-start_ip=$(echo "$kind_ip" | cut -f1-2 -d'.').200.100
-end_ip=$(echo "$start_ip" | cut -f1-3 -d'.').250
 
 
 kubectl apply -f - <<EOF
@@ -117,9 +121,8 @@ helm upgrade --install ingress-nginx ingress-nginx \
 
 echo "[dev-env] installing skupper controller.."
 
-testdomain="${KIND_CLUSTER_NAME}.testing"
 
-cat << EOF | helm upgrade --install skupper-controller oci://quay.io/ckruse/skupper-charts/skupper --namespace skupper --create-namespace  --values -
+cat << EOF | helm upgrade --install skupper-controller oci://quay.io/ckruse/skupper-charts/skupper --namespace skupper --create-namespace  --wait --values -
 image:
   repository: "${CONTROLLER_IMAGE_REPO}"
   tag: "${CONTROLLER_IMAGE_TAG}"

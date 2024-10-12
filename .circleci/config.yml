@@ -195,6 +195,6 @@ jobs:
       - run:
           name: Install Dependencies
           command: |
-            cd ./tests/contour
-            ./install.sh
+            ./e2e/run-kind.sh
+            ./e2e/hack-dns.sh
 
