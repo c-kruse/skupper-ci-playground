@@ -191,6 +191,7 @@ jobs:
             docker image load --input /tmp/images/config-sync.gz
             docker image tag localhost:5000/controller quay.io/skupper/controller:v2-latest
             docker image tag localhost:5000/config-sync quay.io/skupper/config-sync:v2-latest
+            docker pull quay.io/skupper/skupper-router:main
       - run:
           name: Install Dependencies
           command: |
