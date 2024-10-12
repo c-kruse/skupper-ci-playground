@@ -31,7 +31,7 @@ docker run --rm -it -d --name "${KIND_CLUSTER_NAME}-dns" \
 		--local=/${testdomain}/ \
 		--domain=${testdomain} \
 		--address=/${testdomain}/${node_ip} \
-		--address=/ingress-nginx.${testdomain}/${nginx_ip} \
+		--address=/nginx-ingress.${testdomain}/${nginx_ip} \
 		--address=/gateway.${testdomain}/${gateway_ip}"
 
 port=$(docker port skupper-dev-dns  | awk -F ":" '{print $2; exit}')
