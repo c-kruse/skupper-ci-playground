@@ -10,8 +10,19 @@ kind_ip=$(docker network inspect -f '{{.IPAM.Config}}' kind | awk '/.*/ { print 
 interface=$(ip -br -4 a | grep "${kind_ip}" | awk '{print $1}')
 testdomain="${KIND_CLUSTER_NAME}.testing"
 node_ip=$(docker inspect "${KIND_CLUSTER_NAME}"-control-plane -f '{{.NetworkSettings.Networks.kind.IPAddress}}')
-nginx_ip=$(kubectl --kubeconfig="${KUBECONFIG}" get svc -n ingress-nginx ingress-nginx-controller -ojsonpath='{.status.loadBalancer.ingress[0].ip}')
-gateway_ip=$(kubectl --kubeconfig="${KUBECONFIG}" get svc -n skupper envoy-skupper -ojsonpath='{.status.loadBalancer.ingress[0].ip}')
+
+
+kube_get_ingress_svc="kubectl --kubeconfig=${KUBECONFIG} get svc -n ingress-nginx ingress-nginx-controller"
+kube_gateway_svc="kubectl --kubeconfig=${KUBECONFIG} get svc -n skupper envoy-skupper"
+timeout 10s \
+		bash -c \
+		"until ${kube_get_ingress_svc} --output=jsonpath='{.status.loadBalancer}' | grep ingress; do : ; done"
+timeout 10s \
+		bash -c \
+		"until ${kube_gateway_svc} --output=jsonpath='{.status.loadBalancer}' | grep ingress; do : ; done"
+
+nginx_ip=$(bash -c "$kube_get_ingress_svc -ojsonpath='{.status.loadBalancer.ingress[0].ip}'")
+gateway_ip=$(bash -c "$kube_gateway_svc -ojsonpath='{.status.loadBalancer.ingress[0].ip}'")
 
 docker run --rm -it -d --name "${KIND_CLUSTER_NAME}-dns" \
 		-p 53/udp docker.io/debian:bookworm \
