@@ -117,7 +117,8 @@ kubectl apply -f "${DIR}/resources/gatewayclass.yaml"
 # nginx ingress
 helm upgrade --install ingress-nginx ingress-nginx \
   --repo https://kubernetes.github.io/ingress-nginx \
-  --namespace ingress-nginx --create-namespace
+  --namespace ingress-nginx --create-namespace \
+  --set controller.extraArgs.enable-ssl-passthrough=true
 
 echo "[dev-env] installing skupper controller.."
 
