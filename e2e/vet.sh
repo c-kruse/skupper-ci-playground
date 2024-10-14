@@ -5,17 +5,31 @@ set -o nounset
 set -o pipefail
 
 DEBUG=${DEBUG:=false}
+kubeopts=()
+siteName=""
+suffix=$(hexdump -n 4 -v -e '/1 "%02x"' < /dev/urandom)
 
 if [ "${DEBUG}" = "true" ]; then
   set -x
 fi
 
-cat << EOF > site_vet_resources.yaml
+await_site() {
+		siteName=$(kubectl "${kubeopts[@]}" get sites --no-headers --no-headers -o custom-columns=":metadata.name")
+		if [ -z "${siteName}" ]; then
+				echo "No site configured";
+				usage
+		fi
+		echo "= Waiting for site $siteName..."
+		kubectl "${kubeopts[@]}" wait --for=condition=ready "site/${siteName}"
+}
+
+add_vet_resources() {
+		cat << EOF > site_vet_resources.yaml
 ---
 apiVersion: skupper.io/v1alpha1
 kind: AccessGrant
 metadata:
-  name: vet-grant
+  name: vet-${suffix}
 spec:
   redemptionsAllowed: 5
   expirationWindow: 10m
@@ -24,16 +38,16 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
-    app: vet-service
-  name: vet-service
+    app: vet-service-${suffix}
+  name: vet-${suffix}
 spec:
   selector:
     matchLabels:
-      app: vet-service
+      app: vet-service-${suffix}
   template:
     metadata:
       labels:
-        app: vet-service
+        app: vet-service-${suffix}
     spec:
       containers:
       - image: quay.io/skupper/hello-world-backend
@@ -42,22 +56,24 @@ spec:
 apiVersion: skupper.io/v1alpha1
 kind: Connector
 metadata:
-  name: vet-service
+  name: vet-${suffix}
 spec:
   port: 8080
-  routingKey: vet-svc
-  selector: app=vet-service
+  routingKey: svc-vet-${suffix}
+  selector: app=vet-service-${suffix}
   type: tcp
 
 EOF
+		echo "= Deploying workload service ${suffix} to $siteName..."
+		kubectl "${kubeopts[@]}" apply -f site_vet_resources.yaml
+		echo "= Waiting for access grant to be ready..."
+		kubectl "${kubeopts[@]}" wait --for=condition=ready "accessgrant/vet-${suffix}" 
+}
 
-kubectl apply -f site_vet_resources.yaml
-
-kubectl wait --for=condition=ready accessgrant/vet-grant 
-
+do_bootstrap() {
 tmpdir=$(mktemp -d)
 pushd "$tmpdir"
-kubectl get accessgrant vet-grant -o yaml > tmpfile
+kubectl "${kubeopts[@]}" get accessgrant "vet-${suffix}" -o yaml > tmpfile
 URL=$(yq '.status.url' < tmpfile)
 CODE=$(yq '.status.code' < tmpfile)
 cat >site.yaml <<EOF
@@ -73,7 +89,7 @@ kind: Listener
 metadata:
   name: vet-svc
 spec:
-  routingKey: vet-svc
+  routingKey: svc-vet-${suffix}
   port: 9678
   host: 127.0.0.1
 ---
@@ -93,13 +109,13 @@ curl -fsSL -o bootstrap.sh https://raw.githubusercontent.com/skupperproject/skup
 chmod 700 bootstrap.sh
 curl -fsSL -o remove.sh https://raw.githubusercontent.com/skupperproject/skupper/refs/heads/v2/cmd/bootstrap/remove.sh
 chmod 700 remove.sh
-echo "Waiting for vet service deployment ready in Site"
-kubectl wait --for=condition=ready pod -l app=vet-service
-expected_pod=$(kubectl get pod -l app=vet-service --no-headers -o custom-columns=":metadata.name")
-echo "Bootstrapping local site"
-./bootstrap.sh -p "$(pwd)" -n vetns
+echo "= Waiting for vet service deployment ready in Site"
+kubectl "${kubeopts[@]}"  wait --for=condition=ready pod -l "app=vet-service-${suffix}"
+expected_pod=$(kubectl "${kubeopts[@]}"  get pod -l "app=vet-service-${suffix}" --no-headers -o custom-columns=":metadata.name")
+echo "= Bootstrapping local site"
+./bootstrap.sh -p "$(pwd)" -n "vet-${suffix}"
 
-echo "Waiting for local site to serve vet service"
+echo "= Waiting for local site to serve vet service"
 until curl -s -f -o /dev/null "http://127.0.0.1:9678/api/hello"
 do
   echo -n '.'
@@ -108,14 +124,51 @@ done
 echo
 actual=$(curl -s http://127.0.0.1:9678/api/hello | sed -n 's/.*(\([^()]*\)).*/\1/p')
 if [ "$actual" = "$expected_pod" ]; then
-		echo "vet passed: got resposne from $expected_pod"
+		echo "= vet passed: got resposne from $expected_pod"
 else
-		echo "vet failed: got resposne from unexpected $actual"
+		echo "= vet failed: got resposne from unexpected $actual"
 fi
 
-./remove.sh vetns
+./remove.sh "vet-${suffix}"
 popd
+}
 
+cleanup() {
+		echo "= Deleting workload service ${suffix} to $siteName..."
+		kubectl "${kubeopts[@]}" delete -f site_vet_resources.yaml
+		rm -rf site_vet_resources.yaml
+}
+usage() {
+    echo "Use: vet2.sh [-n <namespace>] "
+    echo "     -n The target namespace of the site to vet"
+    echo "     -c The kubeconfig file to use"
+    exit 1
+}
 
-kubectl delete -f site_vet_resources.yaml
-rm site_vet_resources.yaml
+parse_opts() {
+    while getopts "n:c:" opt; do
+        case "${opt}" in
+            n)
+                kubeopts+=("-n=${OPTARG}")
+                ;;
+            c)
+                kubeopts+=("--kubeconfig=${OPTARG}")
+                ;;
+            *)
+                usage
+                ;;
+        esac
+    done
+}
+
+main() {
+    parse_opts "$@"
+
+	await_site
+	add_vet_resources
+    do_bootstrap
+	cleanup
+}
+
+main "$@"
+

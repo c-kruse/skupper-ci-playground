@@ -124,7 +124,7 @@ echo "[dev-env] installing skupper controller.."
 
 
 cat << EOF | helm upgrade --install skupper-controller oci://quay.io/ckruse/skupper-charts/skupper --namespace skupper --create-namespace  --wait --values -
-image:
+controller:
   repository: "${CONTROLLER_IMAGE_REPO}"
   tag: "${CONTROLLER_IMAGE_TAG}"
   pullPolicy: Never
