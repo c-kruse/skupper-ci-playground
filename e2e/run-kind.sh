@@ -145,7 +145,7 @@ access:
     class: contour
     domain: "gateway.$testdomain"
   nodeport:
-    domain: "host.$testdomain"
+    clusterHost: "host.$testdomain"
   nginx:
     domain: "nginx-ingress.$testdomain"
   contour:
