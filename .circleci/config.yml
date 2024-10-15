@@ -193,10 +193,13 @@ jobs:
             docker image tag localhost:5000/config-sync quay.io/skupper/config-sync:v2-latest
             docker pull quay.io/skupper/skupper-router:main
       - run:
-          name: Install Dependencies
+          name: Start Cluster
           command: |
             ./e2e/run-kind.sh
             ./e2e/hack-dns.sh
+      - run:
+          name: Vet test deployments
+          command: |
             export KUBECONFIG=~/.kube/kind-config-skupper-dev
             kubectl apply -f ./examples/test.yaml
             SKUPPER_PLATFORM=docker ./e2e/vet.sh -n public-lb 
