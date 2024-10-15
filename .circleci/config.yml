@@ -195,7 +195,7 @@ jobs:
       - run:
           name: Start Cluster
           command: |
-            ./e2e/run-kind.sh
+            IMAGE_LOAD_STRATEGY=docker ./e2e/kind-dev-cluster.sh
             ./e2e/hack-dns.sh
       - run:
           name: Vet test deployments

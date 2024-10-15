@@ -1,10 +1,12 @@
-#!/bin/bash
+#! /usr/bin/env bash
 
 set -o errexit
 set -o nounset
 set -o pipefail
 
-DEBUG=${DEBUG:=false}
+readonly DEBUG=${DEBUG:=false}
+readonly KUBECTL=${KUBECTL:-kubectl}
+
 kubeopts=()
 siteName=""
 suffix=$(hexdump -n 4 -v -e '/1 "%02x"' < /dev/urandom)
@@ -13,14 +15,26 @@ if [ "${DEBUG}" = "true" ]; then
   set -x
 fi
 
+kubectl::do() {
+		${KUBECTL} "${kubeopts[@]}" "$@"
+}
+
+kubectl::wait::ready() {
+		kubectl::do wait --for=condition=ready "$@"
+}
+
+kubectl::apply() {
+		kubectl::do apply -f "$@"
+}
+
 await_site() {
-		siteName=$(kubectl "${kubeopts[@]}" get sites --no-headers --no-headers -o custom-columns=":metadata.name")
+		siteName=$(kubectl::do get sites --no-headers --no-headers -o custom-columns=":metadata.name")
 		if [ -z "${siteName}" ]; then
 				echo "No site configured";
 				usage
 		fi
 		echo "= Waiting for site $siteName..."
-		kubectl "${kubeopts[@]}" wait --for=condition=ready "site/${siteName}"
+		kubectl::wait::ready "site/${siteName}"
 }
 
 add_vet_resources() {
@@ -65,15 +79,15 @@ spec:
 
 EOF
 		echo "= Deploying workload service ${suffix} to $siteName..."
-		kubectl "${kubeopts[@]}" apply -f site_vet_resources.yaml
+		kubectl::apply site_vet_resources.yaml
 		echo "= Waiting for access grant to be ready..."
-		kubectl "${kubeopts[@]}" wait --for=condition=ready "accessgrant/vet-${suffix}" 
+		kubectl::wait::ready  "accessgrant/vet-${suffix}" 
 }
 
 do_bootstrap() {
 tmpdir=$(mktemp -d)
 pushd "$tmpdir"
-kubectl "${kubeopts[@]}" get accessgrant "vet-${suffix}" -o yaml > tmpfile
+kubectl::do get accessgrant "vet-${suffix}" -o yaml > tmpfile
 URL=$(yq '.status.url' < tmpfile)
 CODE=$(yq '.status.code' < tmpfile)
 cat >site.yaml <<EOF
@@ -110,8 +124,8 @@ chmod 700 bootstrap.sh
 curl -fsSL -o remove.sh https://raw.githubusercontent.com/skupperproject/skupper/refs/heads/v2/cmd/bootstrap/remove.sh
 chmod 700 remove.sh
 echo "= Waiting for vet service deployment ready in Site"
-kubectl "${kubeopts[@]}"  wait --for=condition=ready pod -l "app=vet-service-${suffix}"
-expected_pod=$(kubectl "${kubeopts[@]}"  get pod -l "app=vet-service-${suffix}" --no-headers -o custom-columns=":metadata.name")
+kubectl::wait::ready pod -l "app=vet-service-${suffix}"
+expected_pod=$(kubectl::do  get pod -l "app=vet-service-${suffix}" --no-headers -o custom-columns=":metadata.name")
 echo "= Bootstrapping local site"
 ./bootstrap.sh -p "$(pwd)" -n "vet-${suffix}"
 
@@ -135,7 +149,7 @@ popd
 
 cleanup() {
 		echo "= Deleting workload service ${suffix} to $siteName..."
-		kubectl "${kubeopts[@]}" delete -f site_vet_resources.yaml
+		kubectl::do delete -f site_vet_resources.yaml
 		rm -rf site_vet_resources.yaml
 }
 usage() {
