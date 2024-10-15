@@ -197,9 +197,10 @@ jobs:
           command: |
             ./e2e/run-kind.sh
             ./e2e/hack-dns.sh
+            export KUBECONFIG=~/.kube/kind-config-skupper-dev
             kubectl apply -f ./examples/test.yaml
-            SKUPPER_PLATFORM=docker ./e2e/vet.sh -c ~/.kube/kind-config-skupper-dev -n public-lb 
-            SKUPPER_PLATFORM=docker ./e2e/vet.sh -c ~/.kube/kind-config-skupper-dev -n public-gw 
-            SKUPPER_PLATFORM=docker ./e2e/vet.sh -c ~/.kube/kind-config-skupper-dev -n public-nginx
-            SKUPPER_PLATFORM=docker ./e2e/vet.sh -c ~/.kube/kind-config-skupper-dev -n public-nodeport
+            SKUPPER_PLATFORM=docker ./e2e/vet.sh -n public-lb 
+            SKUPPER_PLATFORM=docker ./e2e/vet.sh -n public-gw 
+            SKUPPER_PLATFORM=docker ./e2e/vet.sh -n public-nginx
+            SKUPPER_PLATFORM=docker ./e2e/vet.sh -n public-nodeport
 
