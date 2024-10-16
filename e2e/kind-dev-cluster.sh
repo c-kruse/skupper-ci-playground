@@ -163,7 +163,7 @@ docker)
 
 archive)
 		echo "[dev-env] copying archived images to cluster..."
-		for archive in "${IMAGE_ARCHIVE_PATH}"/*.gz; do
+		for archive in "${IMAGE_ARCHIVE_PATH}"/*; do
 				kind::imageload::archive "$archive"
 		done
     ;;
