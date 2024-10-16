@@ -118,7 +118,7 @@ jobs:
       - skopeo-install
       - checkout
       - run: docker buildx create --use --name skupper-buildx
-      - run: make multiarch-oci "TAG=${CIRCLE_WORKFLOW_ID}"
+      - run: make multiarch-oci "TAG=$(git rev-parse --short HEAD)"
       - run:
           name: Inspect images
           command: |
@@ -187,8 +187,9 @@ jobs:
           command: |
             export IMAGE_LOAD_STRATEGY=archive
             export IMAGE_ARCHIVE_PATH=/tmp/images/
-            export CONTROLLER_IMAGE_TAG=${CIRCLE_WORKFLOW_ID}
-            export CONFIG_SYNC_IMAGE_TAG=${CIRCLE_WORKFLOW_ID}
+            export TAG=$(git rev-parse --short HEAD)
+            export CONTROLLER_IMAGE_TAG="${TAG}"
+            export CONFIG_SYNC_IMAGE_TAG="${TAG}"
             ./e2e/kind-dev-cluster.sh
             ./e2e/hack-dns.sh
       - run:
