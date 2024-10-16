@@ -115,22 +115,20 @@ jobs:
     executor: local_cluster_test_executor
     steps:
       - docker/install-docker
+      - skopeo-install
       - checkout
-      - run: make -e docker-build
+      - run: docker buildx create --use --name skupper-buildx
+      - run: make multiarch-oci "TAG=${CIRCLE_WORKFLOW_ID}"
       - run:
-          name: persisting images to workspace
+          name: Inspect images
           command: |
-            mkdir /tmp/images
-            docker tag quay.io/skupper/controller:v2-latest localhost:5000/controller
-            docker save localhost:5000/controller | gzip > /tmp/images/controller.gz
-            docker tag quay.io/skupper/config-sync:v2-latest localhost:5000/config-sync
-            docker save localhost:5000/config-sync | gzip > /tmp/images/config-sync.gz
-            docker tag quay.io/skupper/network-console-collector:v2-latest localhost:5000/network-console-collector
-            docker save localhost:5000/network-console-collector | gzip > /tmp/images/network-console-collector.gz
-            docker tag quay.io/skupper/bootstrap:v2-latest localhost:5000/bootstrap
-            docker save localhost:5000/bootstrap | gzip > /tmp/images/bootstrap.gz
+            find ./images/ -type f -name "*.tar" \
+              -print \
+              -exec skopeo inspect oci-archive:{} --format "{{ .Digest }} {{ .Architecture }}"  \; \
+              -exec skopeo inspect oci-archive:{} --format "{{ .Digest }} {{ .Architecture }}" --override-arch arm64 \;
       - persist_to_workspace:
-          root: /tmp
+          root:
+            ./
           paths:
             - images/
 
@@ -185,17 +183,13 @@ jobs:
       - attach_workspace:
           at: /tmp/
       - run:
-          name: Load images
-          command: |
-            docker image load --input /tmp/images/controller.gz
-            docker image load --input /tmp/images/config-sync.gz
-            docker image tag localhost:5000/controller quay.io/skupper/controller:v2-latest
-            docker image tag localhost:5000/config-sync quay.io/skupper/config-sync:v2-latest
-            docker pull quay.io/skupper/skupper-router:main
-      - run:
           name: Start Cluster
           command: |
-            IMAGE_LOAD_STRATEGY=docker ./e2e/kind-dev-cluster.sh
+            export IMAGE_LOAD_STRATEGY=archive
+            export IMAGE_ARCHIVE_PATH=/tmp/images/
+            export CONTROLLER_IMAGE_TAG=${CIRCLE_WORKFLOW_ID}
+            export CONFIG_SYNC_IMAGE_TAG=${CIRCLE_WORKFLOW_ID}
+            ./e2e/kind-dev-cluster.sh
             ./e2e/hack-dns.sh
       - run:
           name: Vet test deployments
@@ -207,3 +201,10 @@ jobs:
             SKUPPER_PLATFORM=docker ./e2e/vet.sh -n public-nginx
             SKUPPER_PLATFORM=docker ./e2e/vet.sh -n public-nodeport
 
+commands:
+  skopeo-install:
+    description: Install skopeo
+    steps:
+      - run:
+          name: Install
+          command: sudo apt-get update -y && sudo apt-get install -y skopeo
