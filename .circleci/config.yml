@@ -193,6 +193,7 @@ jobs:
     environment:
       REGISTRY_AUTH_FILE: ~/.skopeoauth.json
     steps:
+      - checkout
       - skopeo-install
       - attach_workspace:
           at: /tmp/
