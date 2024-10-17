@@ -36,12 +36,17 @@ docker run --rm -it -d --name "${CLUSTER}-dns" \
 		--address=/nginx-ingress.${testdomain}/${nginx_ip} \
 		--address=/gateway.${testdomain}/${gateway_ip}"
 
-sleep 1
+until [ "$(docker inspect -f "{{.State.Running}}" "${CLUSTER}-dns")" == "true" ]; do
+    sleep 0.1;
+done;
 
 port=$(docker port "${CLUSTER}-dns"  | awk -F ":" '{print $2; exit}')
 
-echo "= Waiting for dnsmasq container ${port}"
-dig "x.$testdomain" @127.0.0.1 -p "$port" +timeout=10
+echo "= Waiting for dnsmasq container on ${port}"
+until dig "x.$testdomain" @127.0.0.1 -p "$port"; do
+		sleep 1;
+done;
+
 
 echo "= Updating local resolver configuration"
 sudo resolvectl domain "$interface" ~"$testdomain"
