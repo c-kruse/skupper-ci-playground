@@ -205,7 +205,7 @@ jobs:
       - run:
           name: publish images
           command: |
-            export TAG=$(git rev-parse --short HEAD)
+            TAG=${CIRCLE_SHA1:0:8}
             for archive in /tmp/images/*.tar; do
               TARGET="quay.io/ckruse/$(basename ${archive} .tar):${TAG}"
               echo "pushing images for ${TARGET}"
