@@ -190,13 +190,16 @@ jobs:
   publish-images:
     executor:
       name: go_cimg
+    environment:
+      REGISTRY_AUTH_FILE: ~/.skopeoauth.json
     steps:
       - skopeo-install
       - attach_workspace:
           at: /tmp/
       - run:
           name: skopeo login
-          command: skopeo login quay.io -u "${QUAY_USER}" -p "${QUAY_TOKEN}"
+          command: |
+            skopeo login quay.io -u "${QUAY_USER}" -p "${QUAY_TOKEN}"
       - run:
           name: publish images
           command: |
