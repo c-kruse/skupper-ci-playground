@@ -9,6 +9,10 @@ executors:
     docker:
       - image: cimg/go:1.22
 
+  skopeoimg:
+    docker:
+      - image: quay.io/containers/skopeo:v1.16
+
   local_cluster_test_executor:
     machine:
       image: ubuntu-2204:2022.10.2
@@ -189,12 +193,9 @@ jobs:
 
   publish-images:
     executor:
-      name: go_cimg
-    environment:
-      REGISTRY_AUTH_FILE: ~/.skopeoauth.json
+      name: skopeoimg
     steps:
       - checkout
-      - skopeo-install
       - attach_workspace:
           at: /tmp/
       - run:
@@ -206,9 +207,11 @@ jobs:
           command: |
             export TAG=$(git rev-parse --short HEAD)
             for archive in /tmp/images/*.tar; do
+              TARGET="quay.io/ckruse/$(basename ${archive} .tar):${TAG}"
+              echo "pushing images for ${TARGET}"
               skopeo copy --multi-arch all \
                 oci-archive:"$archive" \
-                "docker://quay.io/ckruse/${archive%.*}:${TAG}"
+                "docker://${TARGET}"
             done
 
 
