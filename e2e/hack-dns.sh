@@ -24,6 +24,8 @@ timeout 10s \
 nginx_ip=$(bash -c "$kube_get_ingress_svc -ojsonpath='{.status.loadBalancer.ingress[0].ip}'")
 gateway_ip=$(bash -c "$kube_gateway_svc -ojsonpath='{.status.loadBalancer.ingress[0].ip}'")
 
+echo "= Starting dnsmasq"
+
 docker run --rm -it -d --name "${CLUSTER}-dns" \
 		-p 53/udp docker.io/debian:bookworm \
 		bash -c "apt-get update -y && apt-get install -y dnsmasq \
@@ -34,10 +36,14 @@ docker run --rm -it -d --name "${CLUSTER}-dns" \
 		--address=/nginx-ingress.${testdomain}/${nginx_ip} \
 		--address=/gateway.${testdomain}/${gateway_ip}"
 
-port=$(docker port skupper-dev-dns  | awk -F ":" '{print $2; exit}')
+sleep 1
 
-dig "x.$testdomain" @127.0.0.1 -p "$port" && \
-        sudo resolvectl domain "$interface" ~"$testdomain" && \
-        sudo resolvectl dns "$interface" "127.0.0.1:$port"
+port=$(docker port "${CLUSTER}-dns"  | awk -F ":" '{print $2; exit}')
 
+echo "= Waiting for dnsmasq container ${port}"
+dig "x.$testdomain" @127.0.0.1 -p "$port" +timeout=10
+
+echo "= Updating local resolver configuration"
+sudo resolvectl domain "$interface" ~"$testdomain"
+sudo resolvectl dns "$interface" "127.0.0.1:$port"
 echo "To rollback: run sudo resolvectl revert $interface"
