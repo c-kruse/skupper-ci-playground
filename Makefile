@@ -49,7 +49,7 @@ docker-build-%: Dockerfile.%
 
 multiarch-oci-%: Dockerfile.% images
 	${DOCKER} buildx build \
-		"--output=type=oci,dest=$(shell pwd)/images/$*-$(VERSION).tar" \
+		"--output=type=oci,dest=$(shell pwd)/images/$*.tar" \
 		-t "${REGISTRY}/$*:${TAG}" \
 		--platform ${PLATFORMS} \
 		-f $< .

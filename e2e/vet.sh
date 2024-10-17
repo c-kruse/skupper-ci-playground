@@ -179,6 +179,9 @@ main() {
     parse_opts "$@"
 
 	await_site
+	echo "= site pod info:"
+	kubectl::do get pods -l application=skupper-router \
+			-o=jsonpath='{range .items[*]}{"pod: "}{ .metadata.name}{range .status.containerStatuses[*]}{ "\n image: "}{ .image }{" "}{.imageID}{", "}{end}{"\n"}{end}'
 	add_vet_resources
     do_bootstrap
 	cleanup

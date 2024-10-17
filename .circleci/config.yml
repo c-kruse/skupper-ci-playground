@@ -20,38 +20,19 @@ yaml-templates:
       tags:
         only: /[0-9].*/
 
-  main_branch_filters: &run_for_main_branch
-    filters:
-      branches:
-        ignore: /.*/
-        only: /main/
-
   v2_branch_filters: &run_for_v2_branch
     filters:
       branches:
         ignore: /.*/
         only: /v2/
 
-  release_filters: &run_for_numeric_tags
-    filters:
-      branches:
-        ignore: /.*/
-      tags:
-        only: /[0-9].*/
-
-  release_requires: &release_requires
-    requires:
-      - build-all
-      - test-skupper-binary
-      - test
-      - main_tests_minikube_local_cluster
-      - policy_tests_minikube_local_cluster
-
   v2_release_requires: &v2_release_requires
     requires:
       - build-all
       - test-skupper-binary
       - test
+      - build-container-images
+      - smoke-tests
 
 workflows:
   version: 2.1
@@ -73,12 +54,16 @@ workflows:
             - build-all
       - test:
           <<: *run_for_all_branches_and_numeric_tags
-      - build_and_save_test_images:
+      - build-container-images:
           <<: *run_for_all_branches_and_numeric_tags
-      - run_cluster_tests:
+      - smoke-tests:
           <<: *run_for_all_branches_and_numeric_tags
           requires:
-            - build_and_save_test_images
+            - build-container-images
+      - publish-images:
+         <<: *v2_release_requires
+         context:
+           - quay-ckruse
 
 
 jobs:
@@ -111,7 +96,7 @@ jobs:
           path: /tmp/artifacts
           destination: test-artifacts
 
-  build_and_save_test_images:
+  build-container-images:
     executor: local_cluster_test_executor
     steps:
       - docker/install-docker
@@ -162,7 +147,7 @@ jobs:
             cd "dist/${CIRCLE_PROJECT_REPONAME}_linux_amd64_v1/"
             ./skupper site
 
-  run_cluster_tests:
+  smoke-tests:
     executor: local_cluster_test_executor
     steps:
       - checkout
@@ -201,6 +186,28 @@ jobs:
             SKUPPER_PLATFORM=docker ./e2e/vet.sh -n public-gw 
             SKUPPER_PLATFORM=docker ./e2e/vet.sh -n public-nginx
             SKUPPER_PLATFORM=docker ./e2e/vet.sh -n public-nodeport
+
+  publish-images:
+    executor:
+      name: go_cimg
+    steps:
+      - skopeo-install
+      - attach_workspace:
+          at: /tmp/
+      - run:
+          name: skopeo login
+          command: skopeo login quay.io -u "${QUAY_USER}" -p "${QUAY_TOKEN}"
+      - run:
+          name: publish images
+          command: |
+            export TAG=$(git rev-parse --short HEAD)
+            for archive in /tmp/images/*.tar; do
+              skopeo copy --multi-arch all \
+                oci-archive:"$archive" \
+                "docker://quay.io/ckruse/${archive%.*}:${TAG}"
+            done
+
+
 
 commands:
   skopeo-install:
