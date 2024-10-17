@@ -195,7 +195,6 @@ jobs:
     executor:
       name: skopeoimg
     steps:
-      - checkout
       - attach_workspace:
           at: /tmp/
       - run:
