@@ -26,9 +26,10 @@ gateway_ip=$(bash -c "$kube_gateway_svc -ojsonpath='{.status.loadBalancer.ingres
 
 echo "= Starting dnsmasq"
 
+docker pull docker.io/alpine:latest
 docker run --rm -it -d --name "${CLUSTER}-dns" \
-		-p 53/udp docker.io/debian:bookworm \
-		bash -c "apt-get update -y && apt-get install -y dnsmasq \
+		-p 53/udp docker.io/alpine:latest \
+		sh -c "apk add dnsmasq \
 		&& dnsmasq -d -z --expand-hosts --log-queries \
 		--local=/${testdomain}/ \
 		--domain=${testdomain} \
