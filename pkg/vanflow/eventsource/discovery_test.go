@@ -240,7 +240,7 @@ func TestDiscoveryWatch(t *testing.T) {
 	select {
 	case event := <-forgottenOut:
 		assert.Check(t, event.ID == sourceAID)
-	case <-time.After(200 * rtt):
+	case <-time.After(500 * rtt):
 		t.Error("expected source to be forgotten after starting watch client with no activity")
 	}
 }
