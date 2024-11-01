@@ -233,16 +233,16 @@ jobs:
         type: string
         default: "quay.io/skupper"
     steps:
-      - attach_workspace:
-          at: .
       - run:
           name: install dependencies
           command: |
-            microdnf install -y skopeo make jq
+            microdnf install -y skopeo make jq tar gzip
       - run:
           name: skopeo login
           command: |
             skopeo login quay.io -u ${QUAY_LOGIN} -p ${QUAY_PASSWORD}
+      - attach_workspace:
+          at: .
       - run:
           name: publish images
           command: |
