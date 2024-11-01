@@ -221,6 +221,8 @@ jobs:
   publish-oci-images:
     executor:
       name: go_cimg
+    environment:
+      REGISTRY_AUTH_FILE: ~/.skopeoauth.json
     parameters:
       image_tag:
         type: string
