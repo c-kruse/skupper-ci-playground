@@ -61,7 +61,7 @@ multiarch-oci-%: Dockerfile.% oci-archives
 ## push multiarch-oci images to a registry using skopeo
 push-multiarch-oci: $(patsubst Dockerfile.%,push-multiarch-oci-%,$(CONTAINERFILES))
 push-multiarch-oci-%: ./oci-archives/%.tar
-	${SKOPEO} copy --multi-arch all \
+	${SKOPEO} copy --all \
 		oci-archive:$< \
 		"docker://${REGISTRY}/$*:${IMAGE_TAG}"
 

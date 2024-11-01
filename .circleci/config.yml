@@ -14,11 +14,6 @@ executors:
       image: ubuntu-2204:2022.10.2
     resource_class: large
 
-  ubiimg: # needed for more recent version of skopeo - the ubuntu packages are quite old
-    docker:
-      - image: registry.access.redhat.com/ubi9-minimal
-
-
 commands:
   skopeo-install:
     description: Install Skopeo
@@ -149,7 +144,7 @@ workflows:
       - test:
           <<: *run_for_all_branches
       - build-oci-images:
-          image_tag: << pipeline.git.revision >>
+          image_tag: v2-latest
           registry: quay.io/ckruse
           <<: *run_for_all_branches
       - publish-oci-images:
@@ -225,7 +220,7 @@ jobs:
 
   publish-oci-images:
     executor:
-      name: ubiimg
+      name: go_cimg
     parameters:
       image_tag:
         type: string
@@ -233,16 +228,14 @@ jobs:
         type: string
         default: "quay.io/skupper"
     steps:
-      - run:
-          name: install dependencies
-          command: |
-            microdnf install -y skopeo make jq tar gzip
+      - skopeo-install
+      - checkout
+      - attach_workspace:
+          at: .
       - run:
           name: skopeo login
           command: |
             skopeo login quay.io -u ${QUAY_LOGIN} -p ${QUAY_PASSWORD}
-      - attach_workspace:
-          at: .
       - run:
           name: publish images
           command: |
