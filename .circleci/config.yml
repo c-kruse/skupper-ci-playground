@@ -111,22 +111,24 @@ workflows:
       - build-oci-images:
           <<: *run_for_numeric_tags
           image_tag: << pipeline.git.tag >>
+          registry: quay.io/ckruse
       - publish-oci-images:
           <<: *run_for_numeric_tags
           image_tag: << pipeline.git.tag >>
+          registry: quay.io/ckruse
           requires:
             - build-all
             - test-skupper-binary
             - test
             - build-oci-images
           context:
-            - skupper-org
+            - quay-ckruse
       - publish-github-release-artifacts:
           <<: *run_for_numeric_tags
           requires:
             - publish-oci-images
           context:
-            - skupper-org
+            - github-ckruse
   build:
     jobs:
       - build-all:
@@ -148,24 +150,26 @@ workflows:
           <<: *run_for_all_branches
       - build-oci-images:
           image_tag: << pipeline.git.revision >>
+          registry: quay.io/ckruse
           <<: *run_for_all_branches
       - publish-oci-images:
           <<: *run_for_v2_branch
           image_tag: v2-latest
+          registry: quay.io/ckruse
           requires:
             - build-all
             - test-skupper-binary
             - test
             - build-oci-images
           context:
-            - skupper-org
+            - quay-ckruse
       - publish-github-prerelease-artifacts:
           <<: *run_for_v2_branch
           version: v2-release
           requires:
             - publish-oci-images
           context:
-            - skupper-org
+            - github-ckruse
 
 jobs:
   test:
