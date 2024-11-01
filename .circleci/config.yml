@@ -221,7 +221,7 @@ jobs:
       - persist_to_workspace:
           root: ./
           paths:
-            - oci-images/
+            - oci-archives/
 
   publish-oci-images:
     executor:
