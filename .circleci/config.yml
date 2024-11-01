@@ -14,9 +14,9 @@ executors:
       image: ubuntu-2204:2022.10.2
     resource_class: large
 
-  skopeoimg:
+  ubiimg: # needed for more recent version of skopeo - the ubuntu packages are quite old
     docker:
-      - image: quay.io/containers/skopeo:v1.16
+      - image: registry.access.redhat.com/ubi9-minimal
 
 
 commands:
@@ -221,11 +221,11 @@ jobs:
       - persist_to_workspace:
           root: ./
           paths:
-            - oci-archives/
+            - oci-images/
 
   publish-oci-images:
     executor:
-      name: skopeoimg
+      name: ubiimg
     parameters:
       image_tag:
         type: string
@@ -235,6 +235,10 @@ jobs:
     steps:
       - attach_workspace:
           at: .
+      - run:
+          name: install dependencies
+          command: |
+            microdnf install -y skopeo make jq
       - run:
           name: skopeo login
           command: |
