@@ -110,6 +110,7 @@ workflows:
           context:
             - quay-ckruse
       - generate-manifest:
+          <<: *run_for_numeric_tags
           requires:
             - publish-oci-images
       - publish-github-release-artifacts:
