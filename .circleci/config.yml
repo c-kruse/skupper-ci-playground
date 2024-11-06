@@ -101,12 +101,14 @@ workflows:
       - build-oci-images:
           <<: *run_for_numeric_tags
           image_tag: << pipeline.git.tag >>
+          registry: quay.io/ckruse
       - publish-oci-images:
           <<: *run_for_numeric_tags
           <<: *v2_release_requires
           image_tag: << pipeline.git.tag >>
+          registry: quay.io/ckruse
           context:
-            - skupper-org
+            - quay-ckruse
       - generate-manifest:
           requires:
             - publish-oci-images
@@ -116,7 +118,7 @@ workflows:
             - publish-oci-images
             - generate-manifest
           context:
-            - skupper-org
+            - github-ckruse
   build:
     jobs:
       - build-all:
@@ -138,13 +140,15 @@ workflows:
           <<: *run_for_all_branches
       - build-oci-images:
           image_tag: v2-latest
+          registry: quay.io/ckruse
           <<: *run_for_all_branches
       - publish-oci-images:
           <<: *run_for_v2_branch
           <<: *v2_release_requires
           image_tag: v2-latest
+          registry: quay.io/ckruse
           context:
-            - skupper-org
+            - quay-ckruse
       - generate-manifest:
           requires:
             - publish-oci-images
@@ -155,7 +159,7 @@ workflows:
             - publish-oci-images
             - generate-manifest
           context:
-            - skupper-org
+            - github-ckruse
 
 jobs:
   test:
