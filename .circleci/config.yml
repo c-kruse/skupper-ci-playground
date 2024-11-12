@@ -23,15 +23,15 @@ commands:
           command: sudo apt-get update -y && sudo apt-get install -y skopeo
 
   podman-install:
-    description: Install Podman
+    description: Install Podman Multiarch
     steps:
       - run:
-          name: Apt Install Podman
+          name: Install Packages
           command: |
             sudo apt-get update -y \
               && sudo apt-get install -y podman qemu-user-static
       - run:
-          name: CircleCI-ify podman
+          name: Configure Podman for CircleCI
           command: |
             # Bypassing CircleCI issue with user session (see: https://github.com/containers/podman/issues/16529)
             mkdir -p ~/.config/containers/containers.conf.d
