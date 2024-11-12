@@ -5,6 +5,7 @@ orbs:
 
 executors:
   go_cimg:
+    resource_class: medium
     docker:
       - image: cimg/go:1.22
 
