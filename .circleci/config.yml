@@ -1,17 +1,17 @@
 version: 2.1
 orbs:
     docker: circleci/docker@1.0.1
-    kube-orb: circleci/kubernetes@0.11.0
     go: circleci/go@1.7.1
 
 executors:
   go_cimg:
+    resource_class: medium
     docker:
       - image: cimg/go:1.22
 
   local_cluster_test_executor:
     machine:
-      image: ubuntu-2204:2022.10.2
+      image: ubuntu-2404:2024.08.1
     resource_class: large
 
 commands:
@@ -22,34 +22,23 @@ commands:
           name: Apt Install Skopeo
           command: sudo apt-get update -y && sudo apt-get install -y skopeo
 
-  compile_go_program:
-    description: Compile specified platform.
-    parameters:
-      platform:
-        type: string
-      goos:
-        type: string
-      goarch:
-        type: string
-      exesuffix:
-        default: ""
-        type: string
+  podman-install:
+    description: Install Podman Multiarch
     steps:
       - run:
-          name: Building << parameters.platform >>
-          command: >-
-            VERSION="${CIRCLE_TAG:-ci-${CIRCLE_BUILD_NUM}}";
-            GOOS=<< parameters.goos >>
-            GOARCH=<< parameters.goarch >>
-            go build -ldflags "-X github.com/skupperproject/skupper/pkg/version.Version=${VERSION}"
-            -o dist/<< parameters.platform >>/skupper<< parameters.exesuffix >>
-            ./cmd/skupper
+          name: Install Packages
+          command: |
+            sudo apt-get update -y \
+              && sudo apt-get install -y podman qemu-user-static
       - run:
-          name: Audit << parameters.platform >>
-          command: >-
-            sha512sum dist/<< parameters.platform >>/skupper<< parameters.exesuffix >>;
-            file dist/<< parameters.platform >>/skupper<< parameters.exesuffix >>;
-            go version -m dist/<< parameters.platform >>/skupper<< parameters.exesuffix >>;
+          name: Configure Podman for CircleCI
+          command: |
+            # Bypassing CircleCI issue with user session (see: https://github.com/containers/podman/issues/16529)
+            mkdir -p ~/.config/containers/containers.conf.d
+            ( echo '[containers]' ; echo 'cgroups = "disabled"' ) > ~/.config/containers/containers.conf.d/podman-circleci-issue.conf
+            ( echo '[engine]' ; echo 'cgroup_manager = "cgroupfs"' ) >> ~/.config/containers/containers.conf.d/podman-circleci-issue.conf
+            # Starting systemd user service
+            systemctl --user start podman.socket
 
 yaml-templates:
   branch_filters: &run_for_all_branches
@@ -72,8 +61,7 @@ yaml-templates:
 
   v2_release_requires: &v2_release_requires
     requires:
-      - build-all
-      - test-skupper-binary
+      - skupper-make
       - test
       - build-oci-images
 
@@ -81,26 +69,24 @@ workflows:
   version: 2.1
   release:
     jobs:
-      - build-all:
-         <<: *run_for_numeric_tags
-      - test-skupper-binary:
+      - skupper-make:
           <<: *run_for_numeric_tags
           matrix:
             parameters:
-              image:
-                - quay.io/centos/centos:stream8
-                - quay.io/centos/centos:stream9
-                - quay.io/fedora/fedora:38
-                - quay.io/fedora/fedora:41
-                - docker.io/debian:bookworm
-                - docker.io/alpine:latest
-          requires:
-            - build-all
+              target:
+                - linux-amd64
+                - linux-arm64
+                - darwin-amd64
+                - darwin-arm64
+                - windows-amd64
+                - console
       - test:
           <<: *run_for_numeric_tags
       - build-oci-images:
           <<: *run_for_numeric_tags
           image_tag: << pipeline.git.tag >>
+          requires:
+            - skupper-make
       - publish-oci-images:
           <<: *run_for_numeric_tags
           <<: *v2_release_requires
@@ -115,31 +101,30 @@ workflows:
           <<: *run_for_numeric_tags
           requires:
             - publish-oci-images
+            - skupper-make
             - generate-manifest
           context:
             - skupper-org
+
   build:
     jobs:
-      - build-all:
-          <<: *run_for_all_branches
-      - test-skupper-binary:
-          <<: *run_for_all_branches
+      - skupper-make:
           matrix:
             parameters:
-              image:
-                - quay.io/centos/centos:stream8
-                - quay.io/centos/centos:stream9
-                - quay.io/fedora/fedora:38
-                - quay.io/fedora/fedora:41
-                - docker.io/debian:bookworm
-                - docker.io/alpine:latest
-          requires:
-            - build-all
+              target:
+                - linux-amd64
+                - linux-arm64
+                - darwin-amd64
+                - darwin-arm64
+                - windows-amd64
+                - console
       - test:
           <<: *run_for_all_branches
       - build-oci-images:
           image_tag: v2-latest
           <<: *run_for_all_branches
+          requires:
+            - skupper-make
       - publish-oci-images:
           <<: *run_for_v2_branch
           <<: *v2_release_requires
@@ -154,6 +139,7 @@ workflows:
           version: v2-release
           requires:
             - publish-oci-images
+            - skupper-make
             - generate-manifest
           context:
             - skupper-org
@@ -212,24 +198,15 @@ jobs:
         type: string
         default: "quay.io/skupper"
     steps:
-      - docker/install-docker
-      - skopeo-install
+      - podman-install
       - checkout
-      - run: docker buildx create --use --name skupper-buildx
-      - run: make multiarch-oci IMAGE_TAG=<< parameters.image_tag >> REGISTRY=<< parameters.registry >>
-      - run:
-          name: Inspect images
-          command: |
-            mkdir -p oci-digests
-            make describe-multiarch-oci \
-              IMAGE_TAG=<< parameters.image_tag >> \
-              REGISTRY=<< parameters.registry >> \
-              | tee ./oci-digests/digests.yaml
+      - attach_workspace:
+          at: .
+      - run: make podman-build-multiarch IMAGE_TAG=<< parameters.image_tag >> REGISTRY=<< parameters.registry >>
       - persist_to_workspace:
-          root: ./
+          root: .
           paths:
-            - oci-archives/
-            - oci-digests/
+            - oci-archives
 
   publish-oci-images:
     executor:
@@ -256,91 +233,50 @@ jobs:
           command: |
             make describe-multiarch-oci push-multiarch-oci REGISTRY="<< parameters.registry >>" IMAGE_TAG="<< parameters.image_tag >>"
 
-  build-all:
+  skupper-make:
+    description: Build skupper components
     executor:
       name: go_cimg
-    environment:
-      CGO_ENABLED: 0
+    parameters:
+      target:
+        type: string
+        default: all
     steps:
       - checkout
       - go/mod-download-cached
-      - run: make
-
-      - compile_go_program:
-          goos: linux
-          goarch: amd64
-          platform: linux-amd64
-
-      - compile_go_program:
-          goos: windows
-          goarch: amd64
-          platform: windows-amd64
-          exesuffix: ".exe"
-
-      - compile_go_program:
-          goos: darwin
-          goarch: amd64
-          platform: mac-amd64
-
-      - compile_go_program:
-          goos: darwin
-          goarch: arm64
-          platform: mac-arm64
-
-      - compile_go_program:
-          goos: linux
-          goarch: arm64
-          platform: linux-arm64
-
-      - compile_go_program:
-          goos: linux
-          goarch: s390x
-          platform: linux-s390x
-
+      - setup_remote_docker
+      - run:
+          name: Run make skupper-<< parameters.target >>
+          command: make skupper-<< parameters.target >>
+      - run:
+          name: Print Digests
+          command: |
+            find ./dist/ -type f -exec sha512sum '{}' \;
+      - run:
+          name: Audit ELF executables
+          command: |
+            if [[ << parameters.target >> =~ ^linux- ]]; then
+              find ./dist/ -type f | xargs -n 1 file | grep "statically linked"
+            fi
       - persist_to_workspace:
           root: .
           paths:
             - dist
 
-  test-skupper-binary:
-    description: Run skupper command in a specific image
-    parameters:
-      image:
-        type: string
-    docker:
-      - image: << parameters.image >>
-    steps:
-      - attach_workspace:
-          at: .
-      - run:
-          name: "Run the skupper binary"
-          command: |
-            cd dist/linux-amd64
-            ./skupper site
-
   publish-github-release-artifacts:
     docker:
       - image: cibuilds/github:0.10
     steps:
+      - checkout
       - attach_workspace:
           at: .
       - run:
           name: "Create a Draft Release on GitHub"
           command: |
             VERSION="${CIRCLE_TAG}"
-            BASEDIR=`pwd`
-            mkdir "${BASEDIR}/archives"
-            cp ./oci-digests/* "${BASEDIR}/archives"
-            for p in `ls dist` ; do
-              cd "$BASEDIR/dist/$p"
-              if [[ $p == windows* ]] ; then
-                zip -q "${BASEDIR}/archives/skupper-cli-${VERSION}-$p.zip" *
-              else
-                tar -zcf "${BASEDIR}/archives/skupper-cli-${VERSION}-$p.tgz" *
-              fi
-            done
-            cd ${BASEDIR}
-            cp "${BASEDIR}/skupper-manifest/manifest.json" "${BASEDIR}/archives"
+            make archive
+            cp ./oci-digests/* ./archives
+            cp ./skupper-manifest/manifest.json ./archives
             ghr -t ${GITHUB_TOKEN} -u ${CIRCLE_PROJECT_USERNAME} -r ${CIRCLE_PROJECT_REPONAME} -c ${CIRCLE_SHA1} -replace -prerelease -draft ${VERSION} "${BASEDIR}/archives"
 
   publish-github-prerelease-artifacts:
@@ -356,17 +292,7 @@ jobs:
           name: "Create a V2 Pre-Release on GitHub"
           command: |
             VERSION="<< parameters.version >>"
-            BASEDIR=`pwd`
-            mkdir "${BASEDIR}/archives"
-            cp ./oci-digests/* "${BASEDIR}/archives"
-            for p in `ls dist` ; do
-              cd "$BASEDIR/dist/$p"
-              if [[ $p == windows* ]] ; then
-                zip -q "${BASEDIR}/archives/skupper-cli-${VERSION}-$p.zip" *
-              else
-                tar -zcf "${BASEDIR}/archives/skupper-cli-${VERSION}-$p.tgz" *
-              fi
-            done
-            cd ${BASEDIR}
-            cp "${BASEDIR}/skupper-manifest/manifest.json" "${BASEDIR}/archives"
+            make archives
+            cp ./oci-digests/* ./archives
+            cp ./skupper-manifest/manifest.json ./archives
             ghr -t ${GITHUB_TOKEN} -u ${CIRCLE_PROJECT_USERNAME} -r ${CIRCLE_PROJECT_REPONAME} -c ${CIRCLE_SHA1} -replace -prerelease ${VERSION} "${BASEDIR}/archives"

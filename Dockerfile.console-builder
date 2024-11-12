@@ -1,0 +1,24 @@
+FROM --platform=$BUILDPLATFORM node:20-alpine AS builder
+
+# Enable pnpm through corepack
+RUN corepack enable pnpm
+ENV HUSKY=0
+
+# Set the working directory for installation
+WORKDIR /js/src/app
+
+# Download and extract the console application tarball
+ADD https://github.com/skupperproject/skupper-console/archive/v2.tar.gz .
+RUN tar -zxf v2.tar.gz --strip-components=1
+
+# Install dependencies without optional ones, leveraging cache
+RUN pnpm install --no-optional --prefer-offline
+
+# Build the console application
+RUN pnpm build \
+	&& tar czvf console.tar.gz --strip-components=1 ./build \
+	&& mkdir /out \
+	&& mv console.tar.gz /out/console.tar.gz
+
+FROM scratch AS artifact
+COPY --from=builder /out/console.tar.gz .
