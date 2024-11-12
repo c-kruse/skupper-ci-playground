@@ -16,7 +16,7 @@ require (
 	github.com/google/uuid v1.3.0
 	github.com/gorilla/handlers v1.5.1
 	github.com/gorilla/mux v1.8.0
-	github.com/interconnectedcloud/go-amqp v0.12.6-0.20200506124159-f51e540008b5
+	github.com/interconnectedcloud/go-amqp 0ee3d766eea4
 	github.com/openshift/api v0.0.0-20210428205234-a8389931bee7
 	github.com/openshift/client-go v0.0.0-20210112165513-ebc401615f47
 	github.com/prometheus/client_golang v1.14.0
