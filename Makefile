@@ -8,9 +8,16 @@ GOBUILD_CGO := 0
 GOBUILD := CGO_ENABLED=${GOBUILD_CGO} go build -ldflags="${LDFLAGS}" -trimpath
 BUILD_DIR := .
 
+CONTAINER_PLATFORMS := linux/amd64 linux/arm64
+DISTBUILD_CONTAINER_PLATFORMS := $(subst /,-,$(CONTAINER_PLATFORMS))
+DISTBUILD_CLI_PLATFORMS := linux-amd64 linux-arm64 linux-s390x darwin-amd64 darwin-arm64 windows-amd64
+DISTBUILD_WEB_PLATFORM ?= true
+ifeq (${DISTBUILD_WEB_PLATFORM},true)
+DISTBUILD_TARGETS = web-dist
+endif
+
 REGISTRY := quay.io/skupper
 IMAGE_TAG := v2-latest
-PLATFORMS ?= linux/amd64 linux/arm64
 CONTAINERFILES := Dockerfile.bootstrap Dockerfile.config-sync Dockerfile.controller Dockerfile.network-console-collector
 CONTAINER_BASE_IMAGE = registry.access.redhat.com/ubi9/ubi-minimal:9.4-1227.1726694542
 SHARED_IMAGE_LABELS = \
@@ -31,50 +38,12 @@ DOCKER := docker
 SKOPEO := skopeo
 PODMAN := podman
 
-all: build-cmd build-config-sync build-controller build-bootstrap build-network-console-collector
+# build all skupper executables
+build: build-cli build-config-sync build-controller build-bootstrap build-network-console-collector
 
-skupper-all: skupper
-
-skupper: skupper-linux-amd64 skupper-linux-arm64 skupper-darwin-amd64 skupper-darwin-arm64 skupper-windows-amd64 skupper-console
-
-skupper-linux-amd64: dist
-	$(MAKE) all GOOS=linux GOARCH=amd64 BUILD_DIR=./dist/linux-amd64
-skupper-linux-arm64: dist
-	$(MAKE) all GOOS=linux GOARCH=arm64 BUILD_DIR=./dist/linux-arm64
-skupper-darwin-amd64: dist
-	$(MAKE) build-cmd GOOS=darwin GOARCH=amd64 BUILD_DIR=./dist/darwin-amd64
-skupper-darwin-arm64: dist
-	$(MAKE) build-cmd GOOS=darwin GOARCH=arm64 BUILD_DIR=./dist/darwin-arm64
-skupper-windows-amd64: dist
-	$(MAKE) build-cmd GOOS=windows GOARCH=amd64 BUILD_DIR=./dist/windows-amd64
-	mv ./dist/windows-amd64/skupper ./dist/windows-amd64/skupper.exe
-skupper-console: dist
-	${DOCKER} build --output type=local,dest=./dist/web -f Dockerfile.console-builder .
-
-.PHONY: archives
-archives: SHELL := /bin/bash
-archives:
-	mkdir -p archives
-	archiveDir=$(shell pwd)/archives; \
-	for d in ./dist/*; do \
-		if [[ -d "$$d" ]]; then \
-			pushd "$$d"; \
-			p="$${d/#*dist\/}"; \
-            if [[ "$$d" =~ (linux|darwin) ]]; then \
-            	tar -zcf "$$archiveDir/skupper-cli-${VERSION}-$$p.tgz" skupper; \
-            fi; \
-            if [[ "$$d" =~ windows ]]; then \
-            	zip -q "$$archiveDir/skupper-cli-${VERSION}-$$p.zip" skupper.exe; \
-            fi; \
-			popd; \
-		fi; \
-	done;
-
-ex:
-
-
-build-cmd:
+build-cli:
 	${GOBUILD} -o ${BUILD_DIR}/skupper ./cmd/skupper
+	@if [ "$${GOOS}" = "windows" ]; then mv ${BUILD_DIR}/skupper ${BUILD_DIR}/skupper.exe; fi
 
 build-bootstrap:
 	${GOBUILD} -o ${BUILD_DIR}/bootstrap ./cmd/bootstrap
@@ -94,20 +63,17 @@ build-manifest:
 build-doc-generator:
 	${GOBUILD} -o ${BUILD_DIR}/generate-doc ./internal/cmd/generate-doc
 
-dist:
-	mkdir -p \
-		dist/web \
-		dist/linux-amd64 \
-		dist/linux-arm64 \
-		dist/darwin-amd64 \
-		dist/darwin-arm64 \
-		dist/windows-amd64;
+web-dist:
+	@mkdir -p ./dist/web
+	${DOCKER} build --output type=local,dest=./dist/web -f Dockerfile.console-builder .
 
 ## native/default container image builds
+docker-build: dist-web
 docker-build: $(patsubst Dockerfile.%,docker-build-%,$(CONTAINERFILES))
 docker-build-%: Dockerfile.% build-%
 	${DOCKER} build $(SHARED_IMAGE_LABELS) $(SHARED_BUILD_ARGS) -t "${REGISTRY}/$*:${IMAGE_TAG}" -f $< ${BUILD_DIR}
 
+podman-build: web-dist
 podman-build: $(patsubst Dockerfile.%,podman-build-%,$(CONTAINERFILES))
 podman-build-%: Dockerfile.% build-%
 	${PODMAN} build $(SHARED_IMAGE_LABELS) $(SHARED_BUILD_ARGS) -t "${REGISTRY}/$*:${IMAGE_TAG}" -f $< ${BUILD_DIR}
@@ -121,7 +87,7 @@ podman-build-multiarch-%: Dockerfile.%
 	mkdir -p ./oci-archives
 	${PODMAN} manifest rm "${REGISTRY}/$*:${IMAGE_TAG}-index" || true
 	${PODMAN} manifest create "${REGISTRY}/$*:${IMAGE_TAG}-index"
-	for platform in ${PLATFORMS}; do \
+	for platform in ${CONTAINER_PLATFORMS}; do \
 		${PODMAN} build --platform "$$platform" \
 			$(SHARED_IMAGE_LABELS) $(SHARED_BUILD_ARGS) \
 			--build-arg BASE_IMAGE=${CONTAINER_BASE_IMAGE} \
@@ -154,6 +120,51 @@ docker-load-oci:
 		img=$$(${PODMAN} load -q < "$$archive" | awk -F": " '{print $$2}') \
 		&& ${PODMAN} image save "$$img" | ${DOCKER} load; \
 	done
+
+.PHONY: dist
+
+# Build all executables for the container platforms
+dist: $(patsubst %,dist-%,$(DISTBUILD_CONTAINER_PLATFORMS))
+# Build CLI for all CLI platforms not included in the container platforms
+dist: $(patsubst %,cli-dist-%,$(filter-out $(DISTBUILD_CONTAINER_PLATFORMS),$(DISTBUILD_CLI_PLATFORMS)))
+# Build web content
+dist: $(DISTBUILD_TARGETS)
+
+cli-dist: $(patsubst %,cli-dist-%,$(DISTBUILD_CLI_PLATFORMS))
+cli-dist-%:
+	@mkdir -p ./dist/$*
+	$(MAKE) build-cli \
+		GOOS=$(word 1, $(subst -, ,$*)) \
+		GOARCH=$(word 2, $(subst -, ,$*)) \
+		BUILD_DIR=./dist/$*
+
+dist-%:
+	@mkdir -p ./dist/$*
+	$(MAKE) build \
+		GOOS=$(word 1, $(subst -, ,$*)) \
+		GOARCH=$(word 2, $(subst -, ,$*)) \
+		BUILD_DIR=./dist/$*
+
+.PHONY: archives
+archives: $(patsubst linux-%,archives-linux-%,$(filter linux-%,$(DISTBUILD_CLI_PLATFORMS)))
+archives: $(patsubst darwin-%,archives-darwin-%,$(filter darwin-%,$(DISTBUILD_CLI_PLATFORMS)))
+archives: $(patsubst windows-%,archives-windows-%,$(filter windows-%,$(DISTBUILD_CLI_PLATFORMS)))
+archives-linux-%:
+	@mkdir -p ./archives
+	tar -zcf "./archives/skupper-cli-${VERSION}-linux-$*.tgz" \
+		-C ./dist/linux-$* skupper
+
+archives-darwin-%:
+	@mkdir -p ./archives
+	tar -zcf "./archives/skupper-cli-${VERSION}-mac-$*.tgz" \
+		-C ./dist/darwin-$* skupper
+
+archives-windows-%:
+	@mkdir -p ./archives
+	base=$(shell pwd); \
+		 pushd ./dist/windows-$*; \
+		 zip -q "$$base/archives/skupper-cli-${VERSION}-windows-$*.zip" skupper.exe \
+		 popd
 
 format:
 	go fmt ./...

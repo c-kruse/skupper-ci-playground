@@ -61,7 +61,10 @@ yaml-templates:
 
   v2_release_requires: &v2_release_requires
     requires:
-      - skupper-make
+      - build-linux-amd64
+      - build-linux-arm64
+      - build-cli-other
+      - build-web
       - test
       - build-oci-images
 
@@ -69,17 +72,18 @@ workflows:
   version: 2.1
   release:
     jobs:
-      - skupper-make:
-          <<: *run_for_numeric_tags
-          matrix:
-            parameters:
-              target:
-                - linux-amd64
-                - linux-arm64
-                - darwin-amd64
-                - darwin-arm64
-                - windows-amd64
-                - console
+      - build-dist:
+          name: build-linux-amd64
+          containerPlatforms: linux-amd64
+      - build-dist:
+          name: build-linux-arm64
+          containerPlatforms: linux-arm64
+      - build-dist:
+          name: build-web
+          web: true
+      - build-dist:
+          name: build-cli-other
+          cliPlatforms: darwin-amd64 darwin-arm64 windows-amd64 linux-s390x
       - test:
           <<: *run_for_numeric_tags
       - build-oci-images:
@@ -87,7 +91,9 @@ workflows:
           image_tag: << pipeline.git.tag >>
           registry: quay.io/ckruse/skupper
           requires:
-            - skupper-make
+            - build-linux-amd64
+            - build-linux-arm64
+            - build-web
       - publish-oci-images:
           <<: *run_for_numeric_tags
           <<: *v2_release_requires
@@ -102,24 +108,27 @@ workflows:
       - publish-github-release-artifacts:
           <<: *run_for_numeric_tags
           requires:
-            - publish-oci-images
-            - skupper-make
             - generate-manifest
+            - build-linux-amd64
+            - build-linux-arm64
+            - build-cli-other
           context:
             - github-ckruse
 
   build:
     jobs:
-      - skupper-make:
-          matrix:
-            parameters:
-              target:
-                - linux-amd64
-                - linux-arm64
-                - darwin-amd64
-                - darwin-arm64
-                - windows-amd64
-                - console
+      - build-dist:
+          name: build-linux-amd64
+          containerPlatforms: linux-amd64
+      - build-dist:
+          name: build-linux-arm64
+          containerPlatforms: linux-arm64
+      - build-dist:
+          name: build-web
+          web: true
+      - build-dist:
+          name: build-cli-other
+          cliPlatforms: darwin-amd64 darwin-arm64 windows-amd64 linux-s390x
       - test:
           <<: *run_for_all_branches
       - build-oci-images:
@@ -127,7 +136,9 @@ workflows:
           registry: quay.io/ckruse/skupper
           <<: *run_for_all_branches
           requires:
-            - skupper-make
+            - build-linux-amd64
+            - build-linux-arm64
+            - build-web
       - publish-oci-images:
           <<: *run_for_v2_branch
           <<: *v2_release_requires
@@ -142,9 +153,10 @@ workflows:
           <<: *run_for_v2_branch
           version: v2-release
           requires:
-            - publish-oci-images
-            - skupper-make
             - generate-manifest
+            - build-linux-amd64
+            - build-linux-arm64
+            - build-cli-other
           context:
             - github-ckruse
 
@@ -237,31 +249,45 @@ jobs:
           command: |
             make describe-multiarch-oci push-multiarch-oci REGISTRY="<< parameters.registry >>" IMAGE_TAG="<< parameters.image_tag >>"
 
-  skupper-make:
+  build-dist:
     description: Build skupper components
     executor:
       name: go_cimg
     parameters:
-      target:
+      containerPlatforms:
         type: string
-        default: all
+        default: ""
+      cliPlatforms:
+        type: string
+        default: ""
+      web:
+        type: boolean
+        default: false
     steps:
       - checkout
       - go/mod-download-cached
       - setup_remote_docker
       - run:
-          name: Run make skupper-<< parameters.target >>
-          command: make skupper-<< parameters.target >>
+          name: Run make dist
+          command: |
+            make dist \
+              DISTBUILD_CONTAINER_PLATFORMS=<< parameters.containerPlatforms >> \
+              DISTBUILD_CLI_PLATFORMS=<< parameters.cliPlatforms >> \
+              DISTBUILD_WEB_PLATFORM=<< parameters.web >>
       - run:
           name: Print Digests
           command: |
             find ./dist/ -type f -exec sha512sum '{}' \;
       - run:
-          name: Audit ELF executables
+          name: Audit executables
           command: |
-            if [[ << parameters.target >> =~ ^linux- ]]; then
-              find ./dist/ -type f | xargs -n 1 file | grep "statically linked"
-            fi
+            set -e
+            for exe in $(find ./dist -type f -executable); do
+              if [[ "$exe" =~ linux]]; then
+                file "$exe" | grep "statically linked"
+              fi
+              ldd "$exe" 2>&1 | grep "not a dynamic executable"
+            done
       - persist_to_workspace:
           root: .
           paths:
