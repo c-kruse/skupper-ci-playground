@@ -334,6 +334,7 @@ jobs:
           name: "Create a Draft Release on GitHub"
           command: |
             VERSION="${CIRCLE_TAG}"
+            apk add make
             make archive
             cp ./oci-digests/* ./archives
             cp ./skupper-manifest/manifest.json ./archives
@@ -353,6 +354,7 @@ jobs:
           name: "Create a V2 Pre-Release on GitHub"
           command: |
             VERSION="<< parameters.version >>"
+            apk add make
             make archives
             cp ./oci-digests/* ./archives
             cp ./skupper-manifest/manifest.json ./archives
