@@ -336,7 +336,6 @@ jobs:
             VERSION="${CIRCLE_TAG}"
             apk add make
             make archive
-            cp ./oci-digests/* ./archives
             cp ./skupper-manifest/manifest.json ./archives
             ghr -t ${GITHUB_TOKEN} -u ${CIRCLE_PROJECT_USERNAME} -r ${CIRCLE_PROJECT_REPONAME} -c ${CIRCLE_SHA1} -replace -prerelease -draft ${VERSION} "${BASEDIR}/archives"
 
@@ -356,6 +355,5 @@ jobs:
             VERSION="<< parameters.version >>"
             apk add make
             make archives
-            cp ./oci-digests/* ./archives
             cp ./skupper-manifest/manifest.json ./archives
             ghr -t ${GITHUB_TOKEN} -u ${CIRCLE_PROJECT_USERNAME} -r ${CIRCLE_PROJECT_REPONAME} -c ${CIRCLE_SHA1} -replace -prerelease ${VERSION} "${BASEDIR}/archives"
