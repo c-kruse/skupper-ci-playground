@@ -282,12 +282,17 @@ jobs:
           name: Audit executables
           command: |
             set -e
-            for exe in $(find ./dist -type f -executable); do
-              if [[ "$exe" =~ linux]]; then
+            for exe in ./dist/**/*; do
+              if [[ ! -f "$exe" ]] || [[ ! -x "$exe" ]]; then
+                      echo "skipping $exe"
+                      continue
+              fi
+              if [[ "$exe" =~ linux ]]; then
                 file "$exe" | grep "statically linked"
               fi
               ldd "$exe" 2>&1 | grep "not a dynamic executable"
             done
+
       - persist_to_workspace:
           root: .
           paths:
