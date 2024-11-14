@@ -286,6 +286,7 @@ jobs:
           name: Audit executables
           command: |
             set -e
+            set +o pipefail
             for exe in ./dist/**/*; do
               if [[ ! -f "$exe" ]] || [[ ! -x "$exe" ]]; then
                       echo "skipping $exe"
