@@ -162,9 +162,9 @@ archives-darwin-%:
 archives-windows-%:
 	@mkdir -p ./archives
 	base=$(shell pwd); \
-		 pushd ./dist/windows-$*; \
+		 cd ./dist/windows-$*; \
 		 zip -q "$$base/archives/skupper-cli-${VERSION}-windows-$*.zip" skupper.exe \
-		 popd
+		 cd ../..
 
 format:
 	go fmt ./...
