@@ -63,7 +63,9 @@ yaml-templates:
     requires:
       - build-linux-amd64
       - build-linux-arm64
-      - build-cli-other
+      - build-linux-s390x
+      - build-darwin
+      - build-windows
       - build-web
       - test
       - build-oci-images
@@ -85,9 +87,14 @@ workflows:
           name: build-web
           web: true
       - build-dist:
-          <<: *run_for_numeric_tags
-          name: build-cli-other
-          cliPlatforms: darwin-amd64 darwin-arm64 windows-amd64 linux-s390x
+          name: build-linux-s390x
+          cliPlatforms: linux-s390x
+      - build-dist:
+          name: build-darwin
+          cliPlatforms: darwin-amd64 darwin-arm64
+      - build-dist:
+          name: build-windows
+          cliPlatforms: windows-amd64
       - test:
           <<: *run_for_numeric_tags
       - build-oci-images:
@@ -115,7 +122,9 @@ workflows:
             - generate-manifest
             - build-linux-amd64
             - build-linux-arm64
-            - build-cli-other
+            - build-linux-s390x
+            - build-darwin
+            - build-windows
           context:
             - github-ckruse
 
@@ -131,8 +140,14 @@ workflows:
           name: build-web
           web: true
       - build-dist:
-          name: build-cli-other
-          cliPlatforms: darwin-amd64 darwin-arm64 windows-amd64 linux-s390x
+          name: build-linux-s390x
+          cliPlatforms: linux-s390x
+      - build-dist:
+          name: build-darwin
+          cliPlatforms: darwin-amd64 darwin-arm64
+      - build-dist:
+          name: build-windows
+          cliPlatforms: windows-amd64
       - test:
           <<: *run_for_all_branches
       - build-oci-images:
@@ -160,7 +175,9 @@ workflows:
             - generate-manifest
             - build-linux-amd64
             - build-linux-arm64
-            - build-cli-other
+            - build-linux-s390x
+            - build-darwin
+            - build-windows
           context:
             - github-ckruse
 
@@ -326,6 +343,7 @@ jobs:
       version:
         type: string
     steps:
+      - checkout
       - attach_workspace:
           at: .
       - run:
