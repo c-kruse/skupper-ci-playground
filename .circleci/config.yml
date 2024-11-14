@@ -73,15 +73,19 @@ workflows:
   release:
     jobs:
       - build-dist:
+          <<: *run_for_numeric_tags
           name: build-linux-amd64
           containerPlatforms: linux-amd64
       - build-dist:
+          <<: *run_for_numeric_tags
           name: build-linux-arm64
           containerPlatforms: linux-arm64
       - build-dist:
+          <<: *run_for_numeric_tags
           name: build-web
           web: true
       - build-dist:
+          <<: *run_for_numeric_tags
           name: build-cli-other
           cliPlatforms: darwin-amd64 darwin-arm64 windows-amd64 linux-s390x
       - test:
