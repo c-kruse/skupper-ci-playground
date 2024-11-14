@@ -87,12 +87,15 @@ workflows:
           name: build-web
           web: true
       - build-dist:
+          <<: *run_for_numeric_tags
           name: build-linux-s390x
           cliPlatforms: linux-s390x
       - build-dist:
+          <<: *run_for_numeric_tags
           name: build-darwin
           cliPlatforms: darwin-amd64 darwin-arm64
       - build-dist:
+          <<: *run_for_numeric_tags
           name: build-windows
           cliPlatforms: windows-amd64
       - test:
