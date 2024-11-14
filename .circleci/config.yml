@@ -275,9 +275,9 @@ jobs:
           name: Run make dist
           command: |
             make dist \
-              DISTBUILD_CONTAINER_PLATFORMS=<< parameters.containerPlatforms >> \
-              DISTBUILD_CLI_PLATFORMS=<< parameters.cliPlatforms >> \
-              DISTBUILD_WEB_PLATFORM=<< parameters.web >>
+              DISTBUILD_CONTAINER_PLATFORMS="<< parameters.containerPlatforms >>" \
+              DISTBUILD_CLI_PLATFORMS="<< parameters.cliPlatforms >>" \
+              DISTBUILD_WEB_PLATFORM="<< parameters.web >>"
       - run:
           name: Print Digests
           command: |
