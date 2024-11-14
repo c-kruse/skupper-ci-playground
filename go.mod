@@ -5,7 +5,7 @@ go 1.21
 require (
 	github.com/briandowns/spinner v1.23.0
 	github.com/davecgh/go-spew v1.1.1
-	github.com/fsnotify/fsnotify v1.6.0
+	github.com/fsnotify/fsnotify v1.8.0
 	github.com/go-openapi/errors v0.20.3
 	github.com/go-openapi/runtime v0.24.1
 	github.com/go-openapi/strfmt v0.21.3
