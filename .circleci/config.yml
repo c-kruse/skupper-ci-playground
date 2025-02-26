@@ -306,7 +306,7 @@ jobs:
             # the connector in east
             kubectl wait listener/backend \
               --timeout=60s \
-              --for=jsonpath='{.status.matchingConnectorCount}=1'
+              --for=jsonpath=`{.status.hasMatchingConnector}=true'
 
   generate-manifest:
     executor:
