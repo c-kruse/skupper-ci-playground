@@ -268,30 +268,38 @@ jobs:
             set -x
 
             skupper=./dist/linux-amd64/skupper
-            # East setup
-            export KUBECONFIG="$HOME/kc.east"
+
+            # Start sites
             kubectl apply \
-              -f ./cmd/controller/example/connector.yaml
-            kubectl create \
-              deployment backend --image quay.io/skupper/hello-world-backend
-            $skupper site create east \
-              --enable-link-access
-            kubectl wait --for=condition=ready \
-              site/east
-            $skupper token issue \
-              accesstoken.east.yaml
+              --kubeconfig="$HOME/kc.west" \
+              -f ./cmd/controller/example/site1.yaml
+            kubectl apply \
+              --kubeconfig="$HOME/kc.east" \
+              -f ./cmd/controller/example/site2.yaml
 
             # West setup
             export KUBECONFIG="$HOME/kc.west"
             kubectl apply \
+              -f ./cmd/controller/example/connector.yaml
+            kubectl create \
+              deployment backend --image quay.io/skupper/hello-world-backend
+            kubectl wait --for=condition=ready \
+              site/west
+            $skupper token issue \
+              accesstoken.west.yaml
+
+            # East setup
+            export KUBECONFIG="$HOME/kc.east"
+            kubectl apply \
+              -f ./cmd/controller/example/site2.yaml
+            kubectl apply \
               -f ./cmd/controller/example/listener.yaml
             kubectl create \
               deployment frontend --image quay.io/skupper/hello-world-frontend
-            $skupper site create west
             kubectl wait --for=condition=ready \
-              site/west
+              site/east
             $skupper token redeem \
-              accesstoken.east.yaml
+              accesstoken.west.yaml
             # assert that backend listener in west is attached to
             # the connector in east
             kubectl wait listener/backend \
