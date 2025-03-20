@@ -12,7 +12,7 @@ executors:
 
   local_cluster_test_executor:
     machine:
-      image: ubuntu-2204:2022.10.2
+      image: ubuntu-2404:current
     resource_class: large
 
 commands:
@@ -244,6 +244,13 @@ jobs:
       - checkout
       - kubectl-install
       - kind-install
+      - run:
+          name: Install Podman
+          command: |
+            set -x
+            apt-get install -y podman;
+            podman --version
+            podman system service
       - attach_workspace:
           at: .
       - run:
